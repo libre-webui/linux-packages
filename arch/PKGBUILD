@@ -1,0 +1,58 @@
+# Maintainer: Libre WebUI <hello@librewebui.org>
+pkgname=libre-webui
+pkgver=0.30.0
+pkgrel=1
+pkgdesc="Privacy-first, self-hosted AI platform: chat with local models via Ollama or cloud providers, plus agents, automations, and knowledge"
+arch=('x86_64' 'aarch64')
+url="https://librewebui.org"
+license=('Apache-2.0')
+depends=('nodejs>=22')
+makedepends=('npm' 'python' 'gcc' 'make')
+optdepends=('ollama: run local models'
+            'docker: sandboxed Work task containers')
+backup=('etc/libre-webui/libre-webui.conf')
+source=("https://registry.npmjs.org/libre-webui/-/libre-webui-${pkgver}.tgz"
+        'libre-webui.service'
+        'libre-webui.sysusers'
+        'libre-webui.tmpfiles'
+        'libre-webui.conf')
+sha256sums=('f41e15feac6adfbbb19768bac03d493172188de3506b9cc804ad1ad476e235b6'
+            'SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP')
+
+build() {
+  cd "$srcdir/package"
+  # Production dependencies only; better-sqlite3 compiles natively here,
+  # which is why the package is arch-specific rather than 'any'.
+  npm install --omit=dev --no-fund --no-audit --loglevel=error
+}
+
+package() {
+  local app="$pkgdir/usr/lib/libre-webui"
+  install -dm755 "$app"
+  cp -a "$srcdir/package/." "$app/"
+
+  # npm workspace artifacts that have no place on a target system.
+  rm -rf "$app/node_modules/.cache" "$app/.npmignore"
+
+  install -dm755 "$pkgdir/usr/bin"
+  cat > "$pkgdir/usr/bin/libre-webui" <<'EOF'
+#!/bin/sh
+exec /usr/bin/node /usr/lib/libre-webui/bin/cli.js "$@"
+EOF
+  chmod 755 "$pkgdir/usr/bin/libre-webui"
+
+  install -Dm644 "$srcdir/libre-webui.service" \
+    "$pkgdir/usr/lib/systemd/system/libre-webui.service"
+  install -Dm644 "$srcdir/libre-webui.sysusers" \
+    "$pkgdir/usr/lib/sysusers.d/libre-webui.conf"
+  install -Dm644 "$srcdir/libre-webui.tmpfiles" \
+    "$pkgdir/usr/lib/tmpfiles.d/libre-webui.conf"
+  install -Dm644 "$srcdir/libre-webui.conf" \
+    "$pkgdir/etc/libre-webui/libre-webui.conf"
+
+  install -Dm644 "$srcdir/package/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

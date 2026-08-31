@@ -1,0 +1,128 @@
+name: Build Linux packages
+
+on:
+  repository_dispatch:
+    types: [libre-webui-release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.30.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - id: v
+        run: |
+          TAG="${{ github.event.client_payload.tag || github.event.inputs.tag }}"
+          [ -n "$TAG" ] || { echo "no tag provided" >&2; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+  deb:
+    needs: resolve
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build .deb
+        run: |
+          mkdir -p out
+          sh debian/scripts/build-deb.sh "${{ needs.resolve.outputs.version }}" "$PWD/out"
+      - name: Smoke-test install and health endpoint
+        run: |
+          sudo apt-get install -y ./out/libre-webui_*.deb
+          sudo -u libre-webui env DATA_DIR=/var/lib/libre-webui PORT=18080 \
+            /usr/bin/libre-webui & SERVER=$!
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:18080/health/live && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:18080/health/live | grep -q '"alive"'
+          sudo kill $SERVER || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: out/*.deb
+
+  pkgbuild:
+    needs: resolve
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump PKGBUILD version and checksum
+        run: |
+          VERSION="${{ needs.resolve.outputs.version }}"
+          curl -fsSL "https://registry.npmjs.org/libre-webui/-/libre-webui-${VERSION}.tgz" -o app.tgz
+          SHA=$(sha256sum app.tgz | cut -d' ' -f1)
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" arch/PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" arch/PKGBUILD
+          sed -i "0,/^sha256sums=('[0-9a-f]*'/s//sha256sums=('${SHA}'/" arch/PKGBUILD
+          rm app.tgz
+      - name: Validate PKGBUILD in Arch container
+        run: |
+          docker run --rm -v "$PWD/arch:/build" archlinux:latest bash -c '
+            set -e
+            echo "DisableSandbox" >> /etc/pacman.conf
+            pacman -Sy --noconfirm --needed base-devel nodejs npm python >/dev/null
+            useradd -m builder
+            chown -R builder /build
+            cd /build
+            sudo -u builder makepkg --nodeps --noconfirm
+            pacman -U --noconfirm libre-webui-*.pkg.tar.zst
+            libre-webui --help | head -3
+          '
+      - name: Commit PKGBUILD bump
+        run: |
+          git config user.name "libre-webui-bot"
+          git config user.email "hello@librewebui.org"
+          git add arch/PKGBUILD
+          git diff --cached --quiet || git commit -m "arch: bump to ${{ needs.resolve.outputs.version }}"
+          git push
+      - name: Build .SRCINFO artifact for AUR
+        run: |
+          docker run --rm -v "$PWD/arch:/build" archlinux:latest bash -c '
+            echo "DisableSandbox" >> /etc/pacman.conf
+            pacman -Sy --noconfirm --needed base-devel >/dev/null
+            useradd -m builder && chown -R builder /build && cd /build
+            sudo -u builder makepkg --printsrcinfo > .SRCINFO
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aur-srcinfo
+          path: arch/.SRCINFO
+
+  release:
+    needs: [resolve, deb]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deb-*
+          merge-multiple: true
+          path: out
+      - name: Publish packages as a release on this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ needs.resolve.outputs.tag }}"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "Libre WebUI $TAG Linux packages" \
+            --notes "Debian packages for Libre WebUI $TAG (amd64, arm64). Arch users: build from arch/PKGBUILD." \
+            out/*.deb 2>/dev/null || gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber out/*.deb

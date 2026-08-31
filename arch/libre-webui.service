@@ -1,0 +1,30 @@
+[Unit]
+Description=Libre WebUI - privacy-first, self-hosted AI platform
+Documentation=https://docs.librewebui.org
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=libre-webui
+Group=libre-webui
+EnvironmentFile=-/etc/libre-webui/libre-webui.conf
+Environment=NODE_ENV=production
+Environment=DATA_DIR=/var/lib/libre-webui
+ExecStart=/usr/bin/libre-webui
+Restart=on-failure
+RestartSec=5
+
+# The state directory is the only writable path the service needs.
+StateDirectory=libre-webui
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/libre-webui
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

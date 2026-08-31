@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  configure)
+    if ! getent passwd libre-webui >/dev/null; then
+      adduser --system --group --home /var/lib/libre-webui \
+        --no-create-home --quiet libre-webui
+    fi
+    mkdir -p /var/lib/libre-webui
+    chown libre-webui:libre-webui /var/lib/libre-webui
+    chmod 750 /var/lib/libre-webui
+
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload || true
+    fi
+    echo "Libre WebUI installed. Start it with:"
+    echo "  sudo systemctl enable --now libre-webui"
+    echo "then open http://localhost:8080 - the first account becomes the administrator."
+    ;;
+esac
+
+exit 0

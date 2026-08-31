@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  remove)
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload || true
+    fi
+    ;;
+  purge)
+    # Data survives 'remove'; only an explicit purge deletes it.
+    rm -rf /var/lib/libre-webui
+    if getent passwd libre-webui >/dev/null; then
+      deluser --system --quiet libre-webui 2>/dev/null || true
+    fi
+    ;;
+esac
+
+exit 0

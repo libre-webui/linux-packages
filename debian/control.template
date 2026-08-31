@@ -1,0 +1,18 @@
+Package: libre-webui
+Version: __VERSION__
+Section: web
+Priority: optional
+Architecture: __ARCH__
+Depends: nodejs (>= 22.22), adduser
+Recommends: openssl
+Suggests: docker.io
+Maintainer: Libre WebUI <hello@librewebui.org>
+Homepage: https://librewebui.org
+Description: Privacy-first, self-hosted AI platform
+ Chat with local models through Ollama or with cloud providers, plus
+ agents, automations, and a knowledge base - all from a single service.
+ .
+ Runs as a systemd service listening on port 8080 by default. All data
+ stays under /var/lib/libre-webui. Debian and Ubuntu releases ship an
+ older Node.js; install Node.js 22 or newer first (for example from
+ nodesource) before installing this package.
