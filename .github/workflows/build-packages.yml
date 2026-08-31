@@ -47,6 +47,11 @@ jobs:
           sh debian/scripts/build-deb.sh "${{ needs.resolve.outputs.version }}" "$PWD/out"
       - name: Smoke-test install and health endpoint
         run: |
+          # apt resolves the nodejs dependency against the archive, not the
+          # setup-node toolcache — install nodesource's package the same way
+          # real users do.
+          curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+          sudo apt-get install -y nodejs
           sudo apt-get install -y ./out/libre-webui_*.deb
           sudo -u libre-webui env DATA_DIR=/var/lib/libre-webui PORT=18080 \
             /usr/bin/libre-webui & SERVER=$!
