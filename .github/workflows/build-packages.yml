@@ -112,6 +112,8 @@ jobs:
         with:
           name: aur-srcinfo
           path: arch/.SRCINFO
+          include-hidden-files: true
+          if-no-files-found: error
 
   release:
     needs: [resolve, deb]
