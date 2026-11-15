@@ -1,6 +1,6 @@
 # Maintainer: Libre WebUI <hello@librewebui.org>
 pkgname=libre-webui
-pkgver=0.44.0
+pkgver=0.44.1
 pkgrel=1
 pkgdesc="Privacy-first, self-hosted AI platform: chat with local models via Ollama or cloud providers, plus agents, automations, and knowledge"
 arch=('x86_64' 'aarch64')
@@ -16,7 +16,7 @@ source=("https://registry.npmjs.org/libre-webui/-/libre-webui-${pkgver}.tgz"
         'libre-webui.sysusers'
         'libre-webui.tmpfiles'
         'libre-webui.conf')
-sha256sums=('b455343c4d04da3b08ae47ec29645d069100549f9568507419d6509e46e4a1d2'
+sha256sums=('9057382886fc1df4732b508d71cfe6abf65473b4273611025db79efe3ef07f6f'
             'SKIP'
             'SKIP'
             'SKIP'
